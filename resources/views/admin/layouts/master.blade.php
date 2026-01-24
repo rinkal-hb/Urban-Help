@@ -17,7 +17,7 @@
     <title>{{ config('app.name') }}</title>
 
     <!-- FAVICON -->
-    <link rel="icon" href="{{ asset('assets/img/logo/favicon.png') }}" type="image/x-icon">
+    <link rel="icon" href="{{ asset('assets/img/logo/urban_help_fav.png') }}" type="image/x-icon">
 
     <!-- BOOTSTRAP CSS -->
     <link id="style" href="{{ asset('build/assets/libs/bootstrap/css/bootstrap.min.css') }}" rel="stylesheet">
@@ -29,7 +29,7 @@
     @vite(['resources/sass/app.scss'])
 
 
-    @include('layouts.components.styles')
+    @include('admin.layouts.components.styles')
 
     <!-- MAIN JS -->
     <script src="{{ asset('build/assets/main.js') }}"></script>
@@ -42,7 +42,7 @@
 
     <!-- SWITCHER -->
 
-    @include('layouts.components.switcher')
+    @include('admin.layouts.components.switcher')
 
     <!-- END SWITCHER -->
 
@@ -57,13 +57,13 @@
 
         <!-- HEADER -->
 
-        @include('layouts.components.header')
+        @include('admin.layouts.components.header')
 
         <!-- END HEADER -->
 
         <!-- SIDEBAR -->
 
-        @include('layouts.components.sidebar')
+        @include('admin.layouts.components.sidebar')
 
         <!-- END SIDEBAR -->
 
@@ -78,13 +78,13 @@
 
         <!-- SEARCH-MODAL -->
 
-        @include('layouts.components.search-modal')
+        @include('admin.layouts.components.search-modal')
 
         <!-- END SEARCH-MODAL -->
 
         <!-- FOOTER -->
 
-        @include('layouts.components.footer')
+        @include('admin.layouts.components.footer')
 
         <!-- END FOOTER -->
 
@@ -93,7 +93,7 @@
 
     <!-- SCRIPTS -->
 
-    @include('layouts.components.scripts')
+    @include('admin.layouts.components.scripts')
 
     @yield('scripts')
 

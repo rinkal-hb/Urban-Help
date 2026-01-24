@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\Admin\AdminController;
 
 use Illuminate\Support\Facades\Route;
 
@@ -21,25 +22,10 @@ use App\Http\Controllers\temp\MapsController;
 use App\Http\Controllers\temp\IconsController;
 
 
-// use App\Http\Controllers\temp\Controller;
-
-
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "web" middleware group. Make something great!
-|
-*/
-
-
-// Route::get('', [Controller::class, 'index']);
-
-
-
+// ADMIN PANEL ROUTES
+Route::prefix('admin')->name('admin.')->group(function () {
+    Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');
+});
 
 
 // DASHBOARDS //

@@ -969,7 +969,7 @@ function doubleClickFn() {
 }
 // double-menu click toggle end
 
-window.addEventListener("unload", () => {
+window.addEventListener("beforeunload", () => {
   let mainContent = document.querySelector('.main-content');
   mainContent.removeEventListener('click', clearNavDropdown);
   window.removeEventListener('resize', ResizeMenu);

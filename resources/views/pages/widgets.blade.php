@@ -1866,11 +1866,17 @@
         <!-- APEX CHARTS JS -->
         <script src="{{asset('build/assets/libs/apexcharts/apexcharts.min.js')}}"></script>
 
-        <!-- JSVECTOR MAPS JS -->
+        {{-- <!-- JSVECTOR MAPS JS -->
         <script src="{{asset('build/assets/libs/jsvectormap/js/jsvectormap.min.js')}}"></script>
 
         <!-- JSRVECTOR MAPS MAPSJS -->
-        <script src="{{asset('build/assets/libs/jsvectormap/maps/world-merc.js')}}"></script>
+        <script src="{{asset('build/assets/libs/jsvectormap/maps/world-merc.js')}}"></script> --}}
+
+         <!-- JSVECTOR MAPS JS -->
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap@1.5.3/dist/js/jsvectormap.min.js"></script>
+
+    <!-- Load all required map data from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap@1.5.3/dist/maps/world-merc.js"></script>
 
         <!-- WIDGETS JS -->
         @vite('resources/assets/js/widgets.js')

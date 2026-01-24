@@ -1,8 +1,22 @@
 (function () {
     "use strict";
 
-    /* basic vector map */
-    var map = new jsVectorMap({
+    // Check if jsVectorMap is available
+    if (typeof jsVectorMap === 'undefined') {
+        console.warn('jsVectorMap library is not loaded');
+        return;
+    }
+
+    // Wait for DOM and world map data to be ready
+    function initMaps() {
+        // Check if world_merc map is available
+        if (!jsVectorMap.maps || !jsVectorMap.maps.world_merc) {
+            setTimeout(initMaps, 100);
+            return;
+        }
+
+        /* basic vector map */
+        var map = new jsVectorMap({
         selector: "#vector-map",
         map: "world_merc",
     });
@@ -250,5 +264,14 @@
             }
         },
     });
+
+    }
+
+    // Start initialization when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initMaps);
+    } else {
+        initMaps();
+    }
 
 })();
