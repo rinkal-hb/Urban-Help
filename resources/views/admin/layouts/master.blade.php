@@ -10,6 +10,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="Description" content="Laravel Bootstrap Responsive Admin Web Dashboard Template">
     <meta name="Author" content="Spruko Technologies Private Limited">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="keywords"
         content="dashboard bootstrap, laravel template, admin panel in laravel, php admin panel, admin panel for laravel, admin template bootstrap 5, laravel admin panel, admin dashboard template, hrm dashboard, vite laravel, admin dashboard, ecommerce admin dashboard, dashboard laravel, analytics dashboard, template dashboard, admin panel template, bootstrap admin panel template">
 
@@ -27,7 +28,6 @@
 
     <!-- APP SCSS -->
     @vite(['resources/sass/app.scss'])
-
 
     @include('admin.layouts.components.styles')
 
@@ -72,7 +72,7 @@
         <div class="main-content app-content">
 
             @yield('content')
-
+            @yield('modal')
         </div>
         <!-- END MAIN-CONTENT -->
 
@@ -93,6 +93,20 @@
 
     <!-- SCRIPTS -->
 
+    <!-- JQUERY -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <!-- JQUERY VALIDATION -->
+    <script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.19.5/dist/jquery.validate.min.js"></script>
+
+    <!-- SWEETALERT2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <!-- DATATABLES -->
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+
     @include('admin.layouts.components.scripts')
 
     @yield('scripts')
@@ -103,10 +117,8 @@
     <!-- APP JS -->
     @vite('resources/js/app.js')
 
-
     <!-- CUSTOM-SWITCHER JS -->
     @vite('resources/assets/js/custom-switcher.js')
-
 
     <!-- END SCRIPTS -->
 

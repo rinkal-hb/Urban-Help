@@ -1,3 +1,5 @@
+
+
 <!-- NODE WAVES CSS -->
 <link href="{{ asset('build/assets/libs/node-waves/waves.min.css') }}" rel="stylesheet">
 
@@ -11,5 +13,5 @@
 <!-- CHOICES CSS -->
 <link rel="stylesheet" href="{{ asset('build/assets/libs/choices.js/public/assets/styles/choices.min.css') }}">
 
-<!-- CHOICES JS -->
-<script src="{{ asset('build/assets/libs/choices.js/public/assets/scripts/choices.min.js') }}"></script>
+
+

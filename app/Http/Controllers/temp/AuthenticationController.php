@@ -77,5 +77,4 @@ class AuthenticationController extends Controller
     {
         return view('pages.under-maintenance');
     }
-
 }

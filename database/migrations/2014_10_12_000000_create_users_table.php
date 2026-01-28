@@ -15,10 +15,21 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
+            $table->string('phone')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->enum('role', ['admin', 'customer', 'provider'])->default('customer');
+            $table->boolean('status')->default(true);
+            $table->string('otp', 6)->nullable();
+            $table->timestamp('otp_expires_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
+            $table->softDeletes();
+            
+            // Basic indexes
+            $table->index('email');
+            $table->index('phone');
+            $table->index(['role', 'status']);
         });
     }
 
