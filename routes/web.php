@@ -18,42 +18,105 @@ Route::get('/', [AuthController::class, 'showLoginForm'])->name('home.login');
 Route::get('login', [AuthController::class, 'showLoginForm'])->name('login');
 Route::post('login', [AuthController::class, 'login'])->name('login.post');
 Route::get('logout', [AuthController::class, 'logout'])->name('logout');
+Route::post('logout', [AuthController::class, 'logout']);
 
 // ADMIN PANEL ROUTES
-Route::middleware(['auth', 'role:admin,super_admin'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'dashboard'])->name('dashboard');
-    Route::get('/dashboard/data', [DashboardController::class, 'getDashboardData'])->name('dashboard.data');
+Route::middleware(['auth'])->prefix('admin')->name('admin.')->group(function () {
+    // Dashboard Route
+    Route::controller(DashboardController::class)->group(function () {
+        Route::get('/dashboard', 'index')->name('dashboard');
+        Route::get('/profile', 'profile')->name('profile');
+        Route::post('/profile/update', 'updateProfile')->name('profile.update');
+        Route::post('/profile/change-password', 'changePassword')->name('profile.change-password');
+    });
 
     // Permission Management
-    Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
-    Route::post('/createpermission', [PermissionController::class, 'create'])->name('permissions.createpermission');
+    Route::controller(PermissionController::class)->group(function () {
+        Route::get('/permissions', 'index')->name('permissions.index');
+        Route::get('/permissions/data', 'getData')->name('permissions.data');
+        Route::get('/permissions/{permission}', 'show')->name('permissions.show');
+        Route::post('/permissions', 'store')->name('permissions.createpermission');
+        Route::match(['POST', 'PUT'], '/permissions/{permission}', 'update')->name('permissions.update');
+        Route::delete('/permissions/{permission}', 'destroy')->name('permissions.destroy');
+    });
 
     // Role Management
-    Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
-    Route::post('/createrole', [RoleController::class, 'create'])->name('roles.createrole');
+    Route::controller(RoleController::class)->group(function () {
+        Route::get('/roles', 'index')->name('roles.index');
+        Route::get('/roles/data', 'getData')->name('roles.data');
+        Route::get('/roles/{role}', 'show')->name('roles.show');
+        Route::get('/roles/{role}/permissions', 'getPermissions')->name('roles.permissions');
+        Route::get('/roles/{role}/users', 'getUsers')->name('roles.users');
+        Route::get('/permissions/available', 'getAvailablePermissions')->name('permissions.available');
+        Route::post('/roles', 'store')->name('roles.store');
+        Route::match(['POST', 'PUT'], '/roles/{role}', 'update')->name('roles.update');
+        Route::delete('/roles/{role}', 'destroy')->name('roles.destroy');
+        Route::post('/roles/{role}/permissions', 'syncPermissions')->name('roles.sync-permissions');
+        Route::post('/roles/{role}/assign-users', 'assignUsers')->name('roles.assign-users');
+        Route::post('/roles/{role}/remove-users', 'removeUsers')->name('roles.remove-users');
+    });
 
     // User Management
-    Route::get('/users', [UserController::class, 'index'])->name('users.index');
-    Route::post('/users/data', [UserController::class, 'getData'])->name('users.data');
-    Route::post('/createuser', [UserController::class, 'create'])->name('users.createuser');
+    Route::controller(UserController::class)->group(function () {
+        Route::get('/users', 'index')->name('users.index');
+        Route::get('/users/data', 'getData')->name('users.data');
+        Route::get('/users/{user}', 'show')->name('users.show');
+        Route::get('/users/stats', 'getStats')->name('users.stats');
+        Route::post('/users', 'store')->name('users.store');
+        Route::match(['POST', 'PUT'], '/users/{user}', 'update')->name('users.update');
+        Route::delete('/users/{user}', 'destroy')->name('users.destroy');
+        Route::post('/users/{user}/toggle-status', 'toggleStatus')->name('users.toggle-status');
+        Route::post('/users/bulk-assign-role', 'bulkAssignRole')->name('users.bulk-assign-role');
+    });
 
-    // Category Management
-    Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');
-    Route::post('/categories/data', [CategoryController::class, 'getData'])->name('categories.data');
-    Route::post('/categories', [CategoryController::class, 'store'])->name('categories.store');
-    Route::get('/categories/{category}', [CategoryController::class, 'show'])->name('categories.show');
-    Route::put('/categories/{category}', [CategoryController::class, 'update'])->name('categories.update');
-    Route::delete('/categories/{category}', [CategoryController::class, 'destroy'])->name('categories.destroy');
+    // Categories
+    Route::controller(CategoryController::class)->group(function () {
+        Route::get('/categories', 'index')->name('categories.index');
+        Route::post('/categories/data', 'getData')->name('categories.data');
+        Route::get('/categories/{category}', 'show')->name('categories.show');
+        Route::post('/categories', 'store')->name('categories.store');
+        Route::post('/categories/{category}', 'update')->name('categories.update');
+        Route::delete('/categories/{category}', 'destroy')->name('categories.destroy');
+    });
 
-    // Service Management
-    Route::get('/services', [ServiceController::class, 'index'])->name('services.index');
-    Route::post('/services/data', [ServiceController::class, 'data'])->name('services.data');
-    Route::post('/services', [ServiceController::class, 'store'])->name('services.store');
-    Route::get('/services/{service}', [ServiceController::class, 'show'])->name('services.show');
-    Route::put('/services/{service}', [ServiceController::class, 'update'])->name('services.update');
-    Route::delete('/services/{service}', [ServiceController::class, 'destroy'])->name('services.destroy');
-    Route::post('/services/{service}/toggle-status', [ServiceController::class, 'toggleStatus'])->name('services.toggle-status');
-    Route::get('/services-categories', [ServiceController::class, 'getCategories'])->name('services.categories');
+    // Services
+    Route::controller(ServiceController::class)->group(function () {
+        Route::get('/services', 'index')->name('services.index');
+        Route::post('/services/data', 'data')->name('services.data');
+        Route::get('/services/{service}', 'show')->name('services.show');
+        Route::get('/services-categories', 'getCategories')->name('services.categories');
+        Route::post('/services', 'store')->name('services.store');
+        Route::match(['POST', 'PUT'], '/services/{service}', 'update')->name('services.update');
+        Route::delete('/services/{service}', 'destroy')->name('services.destroy');
+        Route::post('/services/{service}/toggle-status', 'toggleStatus')->name('services.toggle-status');
+    });
+
+    // Profile and Settings Routes
+
+
+    Route::get('/settings', function () {
+        return view('admin.settings');
+    })->name('settings');
+
+    // Other modules
+    Route::get('/bookings', function () {
+        return view('admin.bookings.index');
+    })->name('bookings.index');
+    Route::get('/providers', function () {
+        return view('admin.providers.index');
+    })->name('providers.index');
+    Route::get('/customers', function () {
+        return view('admin.customers.index');
+    })->name('customers.index');
+    Route::get('/payments', function () {
+        return view('admin.payments.index');
+    })->name('payments.index');
+    Route::get('/reports', function () {
+        return view('admin.reports.index');
+    })->name('reports.index');
+    Route::get('/audit', function () {
+        return view('admin.audit.index');
+    })->name('audit.index');
 });
 
 // CUSTOMER ROUTES

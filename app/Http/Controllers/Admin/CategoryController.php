@@ -68,8 +68,11 @@ class CategoryController extends Controller
                 'description' => $category->description ?? 'N/A',
                 'image' => $category->image ? '<img src="' . Storage::url($category->image) . '" width="50" height="50" class="rounded">' : '<img src="' . asset('assets/img/avatar.png') . '" width="50" height="50" class="rounded">',
                 'status' => $category->status ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-danger">Inactive</span>',
-                'action' => '<button class="btn btn-sm btn-primary" onclick="editCategory(' . $category->id . ')">Edit</button> 
-                            <button class="btn btn-sm btn-danger" onclick="deleteCategory(' . $category->id . ')">Delete</button>'
+                'action' => '<div class="btn-group" role="group">
+                <button class="btn btn-sm btn-primary" onclick="editCategory(' . $category->id . ')"><i class="ri-edit-line"></i></button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteCategory(' . $category->id . ')"><i class="ri-delete-bin-line"></i></button>
+                            </div>'
+
             ];
         }
 
@@ -89,8 +92,7 @@ class CategoryController extends Controller
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255|unique:categories,name',
             'description' => 'nullable|string|max:500',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'status' => 'boolean'
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048'
         ]);
 
         if ($validator->fails()) {
@@ -105,7 +107,7 @@ class CategoryController extends Controller
             $data = [
                 'name' => $request->name,
                 'description' => $request->description,
-                'status' => $request->boolean('status', true)
+                'status' => $request->has('status') ? 1 : 0
             ];
 
             if ($request->hasFile('image')) {
@@ -146,18 +148,23 @@ class CategoryController extends Controller
      */
     public function update(Request $request, Category $category): JsonResponse
     {
+        // Add method spoofing support for PUT requests
+        // if ($request->has('_method') && $request->_method === 'PUT') {
+        //     $request->setMethod('PUT');
+        // }
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255|unique:categories,name,' . $category->id,
             'description' => 'nullable|string|max:500',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
-            'status' => 'boolean'
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048'
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'errors' => $validator->errors()
+                'errors' => $validator->errors(),
+                'request_data' => $request->all() // Debug info
             ], 422);
         }
 
@@ -165,9 +172,10 @@ class CategoryController extends Controller
             $data = [
                 'name' => $request->name,
                 'description' => $request->description,
-                'status' => $request->boolean('status', true)
+                'status' => $request->has('status') ? 1 : 0
             ];
 
+            $imageUpdated = false;
             if ($request->hasFile('image')) {
                 // Delete old image
                 if ($category->image) {
@@ -176,9 +184,22 @@ class CategoryController extends Controller
                 $image = $request->file('image');
                 $imagePath = 'uploads/categories';
                 $data['image'] = uploadImageToStorage($image, $imagePath);
+                $imageUpdated = true;
             }
 
-            $category->update($data);
+            // Fill the model with new data
+            $category->fill($data);
+
+            // Check if any changes were made
+            if (!$category->isDirty() && !$imageUpdated) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'No changes detected',
+                    'data' => $category
+                ]);
+            }
+
+            $category->save();
 
             return response()->json([
                 'success' => true,

@@ -70,19 +70,15 @@ class ServiceController extends Controller
                 'no' => $start + $index + 1,
                 'name' => $service->name,
                 'category_name' => $service->category ? $service->category->name : 'N/A',
-                'price' => '$' . number_format($service->price, 2),
+                'price' => '₹' . number_format($service->price, 2),
                 'duration' => $service->duration . ' min',
                 'image' => $service->image ? '<img src="' . Storage::url($service->image) . '" width="50" height="50" class="rounded">' : '<img src="' . asset('assets/img/avatar.png') . '" width="50" height="50" class="rounded">',
                 'status' => '<div class="form-check form-switch">
                     <input class="form-check-input status-toggle" type="checkbox" data-id="' . $service->id . '" ' . ($service->status ? 'checked' : '') . '>
                 </div>',
                 'action' => '<div class="btn-group" role="group">
-                    <button type="button" class="btn btn-sm btn-primary" onclick="editService(' . $service->id . ')" data-bs-toggle="tooltip" title="Edit">
-                        <i class="ri-edit-line"></i>
-                    </button>
-                    <button type="button" class="btn btn-sm btn-danger" onclick="deleteService(' . $service->id . ')" data-bs-toggle="tooltip" title="Delete">
-                        <i class="ri-delete-bin-line"></i>
-                    </button>
+                    <button class="btn btn-sm btn-primary" onclick="editService(' . $service->id . ')"><i class="ri-edit-line"></i></button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteService(' . $service->id . ')"><i class="ri-delete-bin-line"></i></button>
                 </div>'
             ];
         }
@@ -106,8 +102,7 @@ class ServiceController extends Controller
             'description' => 'nullable|string|max:500',
             'price' => 'required|numeric|min:0',
             'duration' => 'required|integer|min:1',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'status' => 'boolean'
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048'
         ]);
 
         if ($validator->fails()) {
@@ -125,7 +120,7 @@ class ServiceController extends Controller
                 'description' => $request->description,
                 'price' => $request->price,
                 'duration' => $request->duration,
-                'status' => $request->boolean('status', true)
+                'status' => $request->has('status') ? 1 : 0
             ];
 
             if ($request->hasFile('image')) {
@@ -155,7 +150,10 @@ class ServiceController extends Controller
      */
     public function show(Service $service): JsonResponse
     {
-        return response()->json($service);
+        return response()->json([
+            'success' => true,
+            'data' => $service
+        ]);
     }
 
     /**
@@ -163,14 +161,15 @@ class ServiceController extends Controller
      */
     public function update(Request $request, Service $service): JsonResponse
     {
+
+       
         $validator = Validator::make($request->all(), [
             'category_id' => 'required|exists:categories,id',
             'name' => 'required|string|max:255',
             'description' => 'nullable|string|max:500',
             'price' => 'required|numeric|min:0',
             'duration' => 'required|integer|min:1',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
-            'status' => 'boolean'
+            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048'
         ]);
 
         if ($validator->fails()) {
@@ -188,9 +187,10 @@ class ServiceController extends Controller
                 'description' => $request->description,
                 'price' => $request->price,
                 'duration' => $request->duration,
-                'status' => $request->boolean('status', true)
+                'status' => $request->has('status') ? 1 : 0
             ];
 
+            $imageUpdated = false;
             if ($request->hasFile('image')) {
                 // Delete old image
                 if ($service->image) {
@@ -199,9 +199,22 @@ class ServiceController extends Controller
                 $image = $request->file('image');
                 $imagePath = 'uploads/services';
                 $data['image'] = uploadImageToStorage($image, $imagePath);
+                $imageUpdated = true;
             }
 
-            $service->update($data);
+            // Fill the model with new data
+            $service->fill($data);
+
+            // Check if any changes were made
+            if (!$service->isDirty() && !$imageUpdated) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'No changes detected',
+                    'data' => $service
+                ]);
+            }
+
+            $service->save();
 
             return response()->json([
                 'success' => true,

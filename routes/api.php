@@ -2,7 +2,7 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Api\AuthApiController;
 use App\Http\Controllers\Admin\RoleController;
 
 /*
@@ -18,23 +18,23 @@ use App\Http\Controllers\Admin\RoleController;
 
 // Public Authentication Routes
 Route::prefix('auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'apiLogin']);
-    Route::post('/otp/send', [AuthController::class, 'sendOtp']);
-    Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
-    Route::post('/password/forgot', [AuthController::class, 'forgotPassword']);
-    Route::post('/password/reset', [AuthController::class, 'resetPassword']);
+    Route::post('/login', [AuthApiController::class, 'login']);
+    Route::post('/otp/send', [AuthApiController::class, 'sendOtp']);
+    Route::post('/otp/verify', [AuthApiController::class, 'verifyOtp']);
+    Route::post('/password/forgot', [AuthApiController::class, 'forgotPassword']);
+    Route::post('/password/reset', [AuthApiController::class, 'resetPassword']);
 });
 
 // Protected Authentication Routes
 Route::middleware('auth:sanctum')->prefix('auth')->group(function () {
-    Route::post('/logout', [AuthController::class, 'apiLogout']);
-    Route::post('/refresh', [AuthController::class, 'refreshToken']);
-    Route::post('/password/change', [AuthController::class, 'changePassword']);
+    Route::post('/logout', [AuthApiController::class, 'logout']);
+    Route::post('/refresh', [AuthApiController::class, 'refreshToken']);
+    Route::post('/password/change', [AuthApiController::class, 'changePassword']);
     
     // Token Management
-    Route::get('/tokens', [AuthController::class, 'getTokens']);
-    Route::delete('/tokens/{tokenId}', [AuthController::class, 'revokeToken']);
-    Route::delete('/tokens', [AuthController::class, 'revokeAllTokens']);
+    Route::get('/tokens', [AuthApiController::class, 'getTokens']);
+    Route::delete('/tokens/{tokenId}', [AuthApiController::class, 'revokeToken']);
+    Route::delete('/tokens', [AuthApiController::class, 'revokeAllTokens']);
 });
 
 // User Profile Route
@@ -45,8 +45,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return new \App\Http\Resources\UserResource($user);
 });
 
-// Role Management Routes (Admin only)
-Route::middleware(['auth:sanctum', 'permission:roles.read.all'])->prefix('admin')->group(function () {
+// Admin Routes (Protected)
+Route::middleware(['auth:sanctum', 'permission:dashboard.read.all'])->prefix('admin')->group(function () {
     // Dashboard routes
     Route::get('/dashboard/stats', [App\Http\Controllers\Admin\DashboardController::class, 'getStats']);
     Route::get('/dashboard/recent-users', [App\Http\Controllers\Admin\DashboardController::class, 'getRecentUsers']);
@@ -56,54 +56,94 @@ Route::middleware(['auth:sanctum', 'permission:roles.read.all'])->prefix('admin'
     Route::get('/dashboard/export', [App\Http\Controllers\Admin\DashboardController::class, 'exportData']);
 
     // User management routes
-    Route::apiResource('users', App\Http\Controllers\Admin\UserController::class);
-    Route::post('/users/{user}/assign-roles', [App\Http\Controllers\Admin\UserController::class, 'assignRoles'])
-         ->middleware('permission:users.manage.all');
-    Route::delete('/users/{user}/remove-roles', [App\Http\Controllers\Admin\UserController::class, 'removeRoles'])
-         ->middleware('permission:users.manage.all');
-    Route::patch('/users/{user}/toggle-status', [App\Http\Controllers\Admin\UserController::class, 'toggleStatus'])
-         ->middleware('permission:users.manage.all');
-    Route::get('/users-stats', [App\Http\Controllers\Admin\UserController::class, 'getStats']);
-
-    // Role management routes
-    Route::apiResource('roles', RoleController::class);
-    
-    // Role-specific routes
-    Route::prefix('roles/{role}')->group(function () {
-        Route::get('/permissions', [RoleController::class, 'getPermissions']);
-        Route::put('/permissions', [RoleController::class, 'syncPermissions'])
-             ->middleware('permission:roles.manage.all');
-        
-        Route::get('/users', [RoleController::class, 'getUsers']);
-        Route::post('/users', [RoleController::class, 'assignUsers'])
-             ->middleware('permission:roles.manage.all');
-        Route::delete('/users', [RoleController::class, 'removeUsers'])
-             ->middleware('permission:roles.manage.all');
-        
-        Route::get('/hierarchy', [RoleController::class, 'getRoleHierarchy']);
+    Route::middleware('permission:users.read.all')->group(function () {
+        Route::get('/users', [App\Http\Controllers\Admin\UserController::class, 'getData']);
+        Route::get('/users/{user}', [App\Http\Controllers\Admin\UserController::class, 'show']);
+        Route::get('/users/stats', [App\Http\Controllers\Admin\UserController::class, 'getStats']);
     });
     
-    // Permission management routes
-    Route::apiResource('permissions', App\Http\Controllers\Admin\PermissionController::class);
-    Route::get('/permissions/by-module', [App\Http\Controllers\Admin\PermissionController::class, 'getByModule']);
-    Route::get('/permissions/modules', [App\Http\Controllers\Admin\PermissionController::class, 'getModules']);
-    Route::get('/permissions/actions', [App\Http\Controllers\Admin\PermissionController::class, 'getActions']);
-    Route::post('/permissions/bulk-create', [App\Http\Controllers\Admin\PermissionController::class, 'bulkCreate'])
-         ->middleware('permission:permissions.manage.all');
+    Route::middleware('permission:users.manage.all')->group(function () {
+        Route::post('/users', [App\Http\Controllers\Admin\UserController::class, 'store']);
+        Route::put('/users/{user}', [App\Http\Controllers\Admin\UserController::class, 'update']);
+        Route::delete('/users/{user}', [App\Http\Controllers\Admin\UserController::class, 'destroy']);
+        Route::patch('/users/{user}/toggle-status', [App\Http\Controllers\Admin\UserController::class, 'toggleStatus']);
+        Route::post('/users/bulk-assign-role', [App\Http\Controllers\Admin\UserController::class, 'bulkAssignRole']);
+    });
+
+    // Role management routes
+    Route::middleware('permission:roles.read.all')->group(function () {
+        Route::get('/roles', [RoleController::class, 'getData']);
+        Route::get('/roles/{role}', [RoleController::class, 'show']);
+        Route::get('/roles/available-permissions', [RoleController::class, 'getAvailablePermissions']);
+        Route::get('/roles/{role}/permissions', [RoleController::class, 'getPermissions']);
+        Route::get('/roles/{role}/users', [RoleController::class, 'getUsers']);
+    });
     
-    // Available permissions for role assignment
-    Route::get('/available-permissions', [RoleController::class, 'getAvailablePermissions']);
-});
+    Route::middleware('permission:roles.manage.all')->group(function () {
+        Route::post('/roles', [RoleController::class, 'store']);
+        Route::put('/roles/{role}', [RoleController::class, 'update']);
+        Route::delete('/roles/{role}', [RoleController::class, 'destroy']);
+        Route::put('/roles/{role}/permissions', [RoleController::class, 'syncPermissions']);
+        Route::post('/roles/{role}/users', [RoleController::class, 'assignUsers']);
+        Route::delete('/roles/{role}/users', [RoleController::class, 'removeUsers']);
+    });
 
-// Rate Limited Routes
-Route::middleware(['throttle:60,1'])->group(function () {
-    Route::post('/auth/login', [AuthController::class, 'apiLogin']);
-    Route::post('/auth/otp/send', [AuthController::class, 'sendOtp']);
-    Route::post('/auth/otp/verify', [AuthController::class, 'verifyOtp']);
-});
+    // Permission management routes
+    Route::middleware('permission:permissions.read.all')->group(function () {
+        Route::get('/permissions', [App\Http\Controllers\Admin\PermissionController::class, 'getData']);
+        Route::get('/permissions/{permission}', [App\Http\Controllers\Admin\PermissionController::class, 'show']);
+        Route::get('/permissions/stats', [App\Http\Controllers\Admin\PermissionController::class, 'getStats']);
+        Route::get('/permissions/by-module/{module}', [App\Http\Controllers\Admin\PermissionController::class, 'getByModule']);
+    });
+    
+    Route::middleware('permission:permissions.manage.all')->group(function () {
+        Route::post('/permissions', [App\Http\Controllers\Admin\PermissionController::class, 'store']);
+        Route::put('/permissions/{permission}', [App\Http\Controllers\Admin\PermissionController::class, 'update']);
+        Route::delete('/permissions/{permission}', [App\Http\Controllers\Admin\PermissionController::class, 'destroy']);
+        Route::post('/permissions/bulk-create', [App\Http\Controllers\Admin\PermissionController::class, 'bulkCreate']);
+    });
 
-// Strict Rate Limited Routes
-Route::middleware(['throttle:5,1'])->group(function () {
-    Route::post('/auth/password/forgot', [AuthController::class, 'forgotPassword']);
-    Route::post('/auth/password/reset', [AuthController::class, 'resetPassword']);
+    // Category management routes
+    // Route::apiResource('categories', App\Http\Controllers\Admin\CategoryController::class);
+    // Route::get('/categories-data', [App\Http\Controllers\Admin\CategoryController::class, 'getData']);
+
+    // Service management routes
+    // Route::apiResource('services', App\Http\Controllers\Admin\ServiceController::class);
+    // Route::get('/services-data', [App\Http\Controllers\Admin\ServiceController::class, 'getData']);
+
+    // Booking management routes
+    // Route::apiResource('bookings', App\Http\Controllers\Admin\BookingController::class);
+    // Route::get('/bookings-data', [App\Http\Controllers\Admin\BookingController::class, 'getData']);
+    // Route::post('/bookings/{booking}/assign-provider', [App\Http\Controllers\Admin\BookingController::class, 'assignProvider'])
+    //      ->middleware('permission:providers.assign.all');
+
+    // Payment management routes
+    // Route::get('/payments', [App\Http\Controllers\Admin\PaymentController::class, 'index'])
+    //      ->middleware('permission:payments.read.all');
+    // Route::get('/payments-data', [App\Http\Controllers\Admin\PaymentController::class, 'getData'])
+    //      ->middleware('permission:payments.read.all');
+
+    // Provider management routes
+    // Route::get('/providers', [App\Http\Controllers\Admin\ProviderController::class, 'index'])
+    //      ->middleware('permission:providers.read.all');
+    // Route::get('/providers-data', [App\Http\Controllers\Admin\ProviderController::class, 'getData'])
+    //      ->middleware('permission:providers.read.all');
+
+    // Customer management routes
+    // Route::get('/customers', [App\Http\Controllers\Admin\CustomerController::class, 'index'])
+    //      ->middleware('permission:customers.read.all');
+    // Route::get('/customers-data', [App\Http\Controllers\Admin\CustomerController::class, 'getData'])
+    //      ->middleware('permission:customers.read.all');
+
+    // Reports routes
+    // Route::get('/reports', [App\Http\Controllers\Admin\ReportController::class, 'index'])
+    //      ->middleware('permission:reports.read.all');
+    // Route::get('/reports/export', [App\Http\Controllers\Admin\ReportController::class, 'export'])
+    //      ->middleware('permission:reports.export.all');
+
+    // Audit logs routes
+    // Route::get('/audit-logs', [App\Http\Controllers\Admin\AuditLogController::class, 'index'])
+    //      ->middleware('permission:audit.read.all');
+    // Route::get('/audit-logs-data', [App\Http\Controllers\Admin\AuditLogController::class, 'getData'])
+    //      ->middleware('permission:audit.read.all');
 });

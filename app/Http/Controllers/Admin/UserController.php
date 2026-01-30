@@ -5,88 +5,108 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Role;
-use App\Services\PermissionService;
 use App\Http\Resources\UserResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\View\View;
 
 class UserController extends Controller
 {
-    protected PermissionService $permissionService;
-
-    public function __construct(PermissionService $permissionService)
+    public function __construct()
     {
-        $this->permissionService = $permissionService;
-        
         $this->middleware('auth');
         $this->middleware('permission:users.manage.all')->except(['index', 'show']);
         $this->middleware('permission:users.read.all')->only(['index', 'show']);
     }
 
     /**
-     * Display users page
+     * Display users management page
      */
-    public function index(Request $request)
+    public function index(): View
     {
         return view('admin.users.index');
     }
 
     /**
-     * Get users data for DataTables
+     * Get all users with pagination and filtering
      */
     public function getData(Request $request): JsonResponse
     {
-        $draw = filter_var($request->get('draw'), FILTER_VALIDATE_INT);
-        $start = filter_var($request->get('start'), FILTER_VALIDATE_INT);
-        $rowperpage = filter_var($request->get('length'), FILTER_VALIDATE_INT);
-
-        $order_arr = $request->get('order', []);
-        $searchValue = $request->get('search')['value'] ?? '';
-
-        $columnIndex = $order_arr[0]['column'] ?? 0;
-        $columns = ['id', 'name', 'email', 'role', 'is_active'];
-        $columnName = $columns[$columnIndex] ?? 'id';
-        $columnSortOrder = $order_arr[0]['dir'] ?? 'desc';
-
         $query = User::with(['roles:id,name,display_name']);
 
-        // Apply search filter
-        if (!empty($searchValue)) {
-            $query->where(function ($q) use ($searchValue) {
-                $q->where('name', 'like', '%' . $searchValue . '%')
-                  ->orWhere('email', 'like', '%' . $searchValue . '%')
-                  ->orWhere('phone', 'like', '%' . $searchValue . '%');
+        // Apply search
+        if ($request->filled('search')) {
+            $search = $request->string('search');
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
             });
         }
 
-        $totalRecords = $query->count();
-
-        $users = $query->orderBy($columnName, $columnSortOrder)
-                      ->skip($start)
-                      ->take($rowperpage)
-                      ->get();
-
-        $data_arr = [];
-        foreach ($users as $index => $user) {
-            $data_arr[] = [
-                'id' => $user->id,
-                'no' => $start + $index + 1,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => '<span class="badge bg-primary">' . ucfirst($user->role) . '</span>',
-                'status' => $user->is_active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-danger">Inactive</span>',
-                'action' => '<button class="btn btn-sm btn-primary" onclick="editUser(' . $user->id . ')">Edit</button> <button class="btn btn-sm btn-danger" onclick="deleteUser(' . $user->id . ')">Delete</button>'
-            ];
+        // Apply role filter
+        if ($request->filled('role')) {
+            $query->whereHas('roles', function ($q) use ($request) {
+                $q->where('name', $request->string('role'));
+            });
         }
 
+        // Apply status filter
+        if ($request->filled('status')) {
+            $query->where('is_active', $request->boolean('status'));
+        }
+
+        // Apply verification filter
+        if ($request->filled('verification')) {
+            $verification = $request->string('verification');
+            switch ($verification) {
+                case 'email_verified':
+                    $query->whereNotNull('email_verified_at');
+                    break;
+                case 'phone_verified':
+                    $query->whereNotNull('phone_verified_at');
+                    break;
+                case 'identity_verified':
+                    $query->whereNotNull('identity_verified_at');
+                    break;
+                case 'unverified':
+                    $query->whereNull('email_verified_at')
+                          ->whereNull('phone_verified_at')
+                          ->whereNull('identity_verified_at');
+                    break;
+            }
+        }
+
+        $users = $query->orderBy('created_at', 'desc')
+            ->paginate($request->integer('per_page', 15));
+
         return response()->json([
-            'draw' => $draw,
-            'iTotalRecords' => $totalRecords,
-            'iTotalDisplayRecords' => $totalRecords,
-            'data' => $data_arr
+            'success' => true,
+            'data' => [
+                'users' => UserResource::collection($users->items()),
+                'pagination' => [
+                    'current_page' => $users->currentPage(),
+                    'last_page' => $users->lastPage(),
+                    'per_page' => $users->perPage(),
+                    'total' => $users->total()
+                ]
+            ]
+        ]);
+    }
+
+    /**
+     * Show specific user
+     */
+    public function show(User $user): JsonResponse
+    {
+        $user->load(['roles:id,name,display_name']);
+
+        return response()->json([
+            'success' => true,
+            'data' => ['user' => new UserResource($user)]
         ]);
     }
 
@@ -100,12 +120,26 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email',
             'phone' => 'required|string|unique:users,phone',
             'password' => 'required|string|min:8',
-            'role' => 'required|in:admin,customer,provider',
+            'role' => 'required|string|exists:roles,name',
+            'is_active' => 'boolean',
+            'date_of_birth' => 'nullable|date',
+            'gender' => 'nullable|in:male,female,other',
+            'address' => 'nullable|string|max:500',
             'city' => 'nullable|string|max:100',
             'state' => 'nullable|string|max:100',
+            'postal_code' => 'nullable|string|max:20',
             'country' => 'nullable|string|max:100',
-            'roles' => 'array',
-            'roles.*' => 'exists:roles,id'
+            'provider_type' => 'nullable|in:individual,company',
+            'experience_years' => 'nullable|integer|min:0|max:50',
+            'hourly_rate' => 'nullable|numeric|min:0',
+            'business_name' => 'nullable|string|max:255',
+            'business_license' => 'nullable|string|max:255',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'additional_roles' => 'nullable|array',
+            'additional_roles.*' => 'exists:roles,id',
+            'email_verified' => 'boolean',
+            'phone_verified' => 'boolean',
+            'identity_verified' => 'boolean'
         ]);
 
         if ($validator->fails()) {
@@ -117,62 +151,57 @@ class UserController extends Controller
         }
 
         try {
-            $user = User::create([
-                'name' => $request->name,
-                'email' => $request->email,
-                'phone' => $request->phone,
-                'password' => Hash::make($request->password),
-                'role' => $request->role,
-                'city' => $request->city,
-                'state' => $request->state,
-                'country' => $request->country ?? 'India',
-                'is_active' => true,
-                'email_verified_at' => now(),
-                'phone_verified_at' => now(),
-            ]);
-
-            // Assign roles if provided
-            if ($request->has('roles')) {
-                foreach ($request->roles as $roleId) {
-                    $role = Role::find($roleId);
-                    if ($role) {
-                        $this->permissionService->assignRoleToUser($user, $role);
-                    }
-                }
+            $userData = $validator->validated();
+            $userData['password'] = Hash::make($userData['password']);
+            
+            // Handle avatar upload
+            if ($request->hasFile('avatar')) {
+                $avatarPath = $request->file('avatar')->store('avatars', 'public');
+                $userData['avatar'] = Storage::url($avatarPath);
             }
 
-            $user->load('roles:id,name,display_name');
+            // Handle verification timestamps
+            if ($userData['email_verified'] ?? false) {
+                $userData['email_verified_at'] = now();
+            }
+            if ($userData['phone_verified'] ?? false) {
+                $userData['phone_verified_at'] = now();
+            }
+            if ($userData['identity_verified'] ?? false) {
+                $userData['identity_verified_at'] = now();
+            }
+
+            // Remove verification flags and additional roles from user data
+            $additionalRoles = $userData['additional_roles'] ?? [];
+            unset($userData['additional_roles'], $userData['email_verified'], $userData['phone_verified'], $userData['identity_verified']);
+
+            $user = User::create($userData);
+
+            // Assign primary role
+            $primaryRole = Role::where('name', $userData['role'])->first();
+            if ($primaryRole) {
+                $user->assignRole($primaryRole, auth()->user());
+            }
+
+            // Assign additional roles
+            foreach ($additionalRoles as $roleId) {
+                $role = Role::find($roleId);
+                if ($role) {
+                    $user->assignRole($role, auth()->user());
+                }
+            }
 
             return response()->json([
                 'success' => true,
                 'message' => 'User created successfully',
-                'data' => [
-                    'user' => new UserResource($user)
-                ]
+                'data' => ['user' => new UserResource($user->load('roles'))]
             ], 201);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create user',
-                'error' => $e->getMessage()
+                'message' => 'Failed to create user: ' . $e->getMessage()
             ], 500);
         }
-    }
-
-    /**
-     * Get specific user
-     */
-    public function show(User $user): JsonResponse
-    {
-        $user->load(['roles:id,name,display_name']);
-
-        return response()->json([
-            'success' => true,
-            'data' => [
-                'user' => new UserResource($user)
-            ]
-        ]);
     }
 
     /**
@@ -181,21 +210,30 @@ class UserController extends Controller
     public function update(Request $request, User $user): JsonResponse
     {
         $validator = Validator::make($request->all(), [
-            'name' => 'string|max:255',
-            'email' => [
-                'email',
-                Rule::unique('users')->ignore($user->id)
-            ],
-            'phone' => [
-                'string',
-                Rule::unique('users')->ignore($user->id)
-            ],
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $user->id,
+            'phone' => 'required|string|unique:users,phone,' . $user->id,
             'password' => 'nullable|string|min:8',
-            'role' => 'in:admin,customer,provider',
+            'role' => 'required|string|exists:roles,name',
             'is_active' => 'boolean',
+            'date_of_birth' => 'nullable|date',
+            'gender' => 'nullable|in:male,female,other',
+            'address' => 'nullable|string|max:500',
             'city' => 'nullable|string|max:100',
             'state' => 'nullable|string|max:100',
+            'postal_code' => 'nullable|string|max:20',
             'country' => 'nullable|string|max:100',
+            'provider_type' => 'nullable|in:individual,company',
+            'experience_years' => 'nullable|integer|min:0|max:50',
+            'hourly_rate' => 'nullable|numeric|min:0',
+            'business_name' => 'nullable|string|max:255',
+            'business_license' => 'nullable|string|max:255',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'additional_roles' => 'nullable|array',
+            'additional_roles.*' => 'exists:roles,id',
+            'email_verified' => 'boolean',
+            'phone_verified' => 'boolean',
+            'identity_verified' => 'boolean'
         ]);
 
         if ($validator->fails()) {
@@ -207,32 +245,70 @@ class UserController extends Controller
         }
 
         try {
-            $updateData = $request->only([
-                'name', 'email', 'phone', 'role', 'is_active',
-                'city', 'state', 'country'
-            ]);
-
-            if ($request->filled('password')) {
-                $updateData['password'] = Hash::make($request->password);
+            $userData = $validator->validated();
+            
+            // Handle password update
+            if (!empty($userData['password'])) {
+                $userData['password'] = Hash::make($userData['password']);
+            } else {
+                unset($userData['password']);
+            }
+            
+            // Handle avatar upload
+            if ($request->hasFile('avatar')) {
+                // Delete old avatar if exists
+                if ($user->avatar) {
+                    $oldPath = str_replace('/storage/', '', $user->avatar);
+                    Storage::disk('public')->delete($oldPath);
+                }
+                
+                $avatarPath = $request->file('avatar')->store('avatars', 'public');
+                $userData['avatar'] = Storage::url($avatarPath);
             }
 
-            $user->update($updateData);
+            // Handle verification timestamps
+            if (isset($userData['email_verified'])) {
+                $userData['email_verified_at'] = $userData['email_verified'] ? now() : null;
+            }
+            if (isset($userData['phone_verified'])) {
+                $userData['phone_verified_at'] = $userData['phone_verified'] ? now() : null;
+            }
+            if (isset($userData['identity_verified'])) {
+                $userData['identity_verified_at'] = $userData['identity_verified'] ? now() : null;
+            }
 
-            $user->load('roles:id,name,display_name');
+            // Remove verification flags and additional roles from user data
+            $additionalRoles = $userData['additional_roles'] ?? [];
+            unset($userData['additional_roles'], $userData['email_verified'], $userData['phone_verified'], $userData['identity_verified']);
+
+            $user->update($userData);
+
+            // Update roles
+            $user->roles()->detach(); // Remove all current roles
+            
+            // Assign primary role
+            $primaryRole = Role::where('name', $userData['role'])->first();
+            if ($primaryRole) {
+                $user->assignRole($primaryRole, auth()->user());
+            }
+
+            // Assign additional roles
+            foreach ($additionalRoles as $roleId) {
+                $role = Role::find($roleId);
+                if ($role) {
+                    $user->assignRole($role, auth()->user());
+                }
+            }
 
             return response()->json([
                 'success' => true,
                 'message' => 'User updated successfully',
-                'data' => [
-                    'user' => new UserResource($user)
-                ]
+                'data' => ['user' => new UserResource($user->load('roles'))]
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update user',
-                'error' => $e->getMessage()
+                'message' => 'Failed to update user: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -242,165 +318,32 @@ class UserController extends Controller
      */
     public function destroy(User $user): JsonResponse
     {
+        // Prevent deleting super admin
+        if ($user->hasRole('super_admin')) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot delete super admin user'
+            ], 403);
+        }
+
         try {
-            // Prevent deletion of super admin
-            if ($user->hasRole('super_admin')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot delete super admin user',
-                    'error_code' => 'SUPER_ADMIN_DELETION'
-                ], 422);
+            // Delete avatar if exists
+            if ($user->avatar) {
+                $avatarPath = str_replace('/storage/', '', $user->avatar);
+                Storage::disk('public')->delete($avatarPath);
             }
 
+            $userName = $user->name;
             $user->delete();
 
             return response()->json([
                 'success' => true,
                 'message' => 'User deleted successfully'
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete user',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Assign roles to user
-     */
-    public function assignRoles(Request $request, User $user): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'role_ids' => 'required|array',
-            'role_ids.*' => 'exists:roles,id'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        try {
-            $roles = Role::whereIn('id', $request->role_ids)->get();
-            $assignedCount = 0;
-
-            foreach ($roles as $role) {
-                if (!$user->hasRole($role->name)) {
-                    $this->permissionService->assignRoleToUser($user, $role);
-                    $assignedCount++;
-                }
-            }
-
-            $user->load('roles:id,name,display_name');
-
-            return response()->json([
-                'success' => true,
-                'message' => "Successfully assigned {$assignedCount} roles to user",
-                'data' => [
-                    'user' => new UserResource($user),
-                    'assigned_count' => $assignedCount
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to assign roles',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Remove roles from user
-     */
-    public function removeRoles(Request $request, User $user): JsonResponse
-    {
-        $validator = Validator::make($request->all(), [
-            'role_ids' => 'required|array',
-            'role_ids.*' => 'exists:roles,id'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        try {
-            $roles = Role::whereIn('id', $request->role_ids)->get();
-            $removedCount = 0;
-
-            foreach ($roles as $role) {
-                // Prevent removal of super_admin role
-                if ($role->name === 'super_admin') {
-                    continue;
-                }
-
-                if ($user->hasRole($role->name)) {
-                    $this->permissionService->removeRoleFromUser($user, $role);
-                    $removedCount++;
-                }
-            }
-
-            $user->load('roles:id,name,display_name');
-
-            return response()->json([
-                'success' => true,
-                'message' => "Successfully removed {$removedCount} roles from user",
-                'data' => [
-                    'user' => new UserResource($user),
-                    'removed_count' => $removedCount
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to remove roles',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Toggle user active status
-     */
-    public function toggleStatus(User $user): JsonResponse
-    {
-        try {
-            // Prevent deactivation of super admin
-            if ($user->hasRole('super_admin') && $user->is_active) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Cannot deactivate super admin user',
-                    'error_code' => 'SUPER_ADMIN_DEACTIVATION'
-                ], 422);
-            }
-
-            $user->update(['is_active' => !$user->is_active]);
-
-            return response()->json([
-                'success' => true,
-                'message' => $user->is_active ? 'User activated successfully' : 'User deactivated successfully',
-                'data' => [
-                    'user' => new UserResource($user)
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to toggle user status',
-                'error' => $e->getMessage()
+                'message' => 'Failed to delete user: ' . $e->getMessage()
             ], 500);
         }
     }
@@ -413,21 +356,72 @@ class UserController extends Controller
         $stats = [
             'total_users' => User::count(),
             'active_users' => User::where('is_active', true)->count(),
-            'inactive_users' => User::where('is_active', false)->count(),
-            'verified_users' => User::whereNotNull('email_verified_at')
-                                  ->whereNotNull('phone_verified_at')
-                                  ->count(),
-            'users_by_role' => User::selectRaw('role, COUNT(*) as count')
-                                  ->groupBy('role')
-                                  ->pluck('count', 'role'),
-            'recent_registrations' => User::where('created_at', '>=', now()->subDays(7))->count(),
+            'new_users' => User::where('created_at', '>=', now()->startOfMonth())->count(),
+            'admin_users' => User::whereHas('roles', function ($q) {
+                $q->whereIn('name', ['super_admin', 'admin']);
+            })->count()
         ];
 
         return response()->json([
             'success' => true,
-            'data' => [
-                'stats' => $stats
-            ]
+            'data' => $stats
         ]);
+    }
+
+    /**
+     * Toggle user status
+     */
+    public function toggleStatus(Request $request, User $user): JsonResponse
+    {
+        $user->update(['is_active' => !$user->is_active]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User status updated successfully',
+            'data' => ['is_active' => $user->is_active]
+        ]);
+    }
+
+    /**
+     * Bulk assign role to users
+     */
+    public function bulkAssignRole(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'user_ids' => 'required|array',
+            'user_ids.*' => 'exists:users,id',
+            'role' => 'required|string|exists:roles,name'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $role = Role::where('name', $request->role)->first();
+            $assignedCount = 0;
+
+            foreach ($request->user_ids as $userId) {
+                $user = User::find($userId);
+                if ($user && !$user->hasRole($role->name)) {
+                    $user->assignRole($role, auth()->user());
+                    $assignedCount++;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Successfully assigned role to {$assignedCount} users"
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to assign roles: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

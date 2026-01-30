@@ -1,5 +1,7 @@
 @extends('admin.layouts.master')
 
+@section('title', 'Categories')
+
 @section('content')
     <div class="container-fluid">
         <div class="d-md-flex d-block align-items-center justify-content-between my-4 page-header-breadcrumb">
@@ -37,97 +39,17 @@
         </div>
     </div>
 
-    <!-- Create Category Modal -->
-    <div class="modal fade" id="createCategoryModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Create New Category</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <form id="createCategoryForm" enctype="multipart/form-data" novalidate>
-                    @csrf
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="name" class="form-label">Category Name <span
-                                    class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="name" name="name">
-                            <div class="invalid-feedback"></div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="description" class="form-label">Description</label>
-                            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
-                            <div class="invalid-feedback"></div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="image" class="form-label">Image</label>
-                            <input type="file" class="form-control" id="image" name="image" accept="image/*">
-                            <div class="invalid-feedback"></div>
-                        </div>
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="status" name="status" checked>
-                                <label class="form-check-label" for="status">Active</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Create Category</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+    @include('admin.categories.categorymodal')
 
-    <!-- Edit Category Modal -->
-    <div class="modal fade" id="editCategoryModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Edit Category</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <form id="editCategoryForm" enctype="multipart/form-data" novalidate>
-                    @csrf
-                    @method('PUT')
-                    <input type="hidden" id="edit_category_id" name="category_id">
-                    <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="edit_name" class="form-label">Category Name <span
-                                    class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="edit_name" name="name">
-                            <div class="invalid-feedback"></div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="edit_description" class="form-label">Description</label>
-                            <textarea class="form-control" id="edit_description" name="description" rows="3"></textarea>
-                            <div class="invalid-feedback"></div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="edit_image" class="form-label">Image</label>
-                            <input type="file" class="form-control" id="edit_image" name="image" accept="image/*">
-                            <div class="invalid-feedback"></div>
-                        </div>
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="edit_status" name="status">
-                                <label class="form-check-label" for="edit_status">Active</label>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Update Category</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
 @endsection
 
 @section('scripts')
     <script>
+        // Add extension validation method for jQuery Validate
+        $.validator.addMethod("extension", function(value, element, param) {
+            param = typeof param === "string" ? param.replace(/,/g, '|') : "png|jpe?g|gif";
+            return this.optional(element) || value.match(new RegExp("." + param + "$", "i"));
+        }, "Please enter a value with a valid extension.");
         $(document).ready(function() {
             var table = $('#categoriesTable').DataTable({
                 responsive: true,
@@ -145,20 +67,49 @@
                     targets: [0],
                     visible: false,
                 }],
-                columns: [
-                    { data: 'id', name: 'id' },
-                    { data: 'no', name: 'no' },
-                    { data: 'name', name: 'name' },
-                    { data: 'description', name: 'description' },
-                    { data: 'image', name: 'image', orderable: false, searchable: false },
-                    { data: 'status', name: 'status' },
-                    { data: 'action', name: 'action', orderable: false, searchable: false }
+                columns: [{
+                        data: 'id',
+                        name: 'id'
+                    },
+                    {
+                        data: 'no',
+                        name: 'no'
+                    },
+                    {
+                        data: 'name',
+                        name: 'name'
+                    },
+                    {
+                        data: 'description',
+                        name: 'description'
+                    },
+                    {
+                        data: 'image',
+                        name: 'image',
+                        orderable: false,
+                        searchable: false
+                    },
+                    {
+                        data: 'status',
+                        name: 'status'
+                    },
+                    {
+                        data: 'action',
+                        name: 'action',
+                        orderable: false,
+                        searchable: false
+                    }
                 ],
                 drawCallback: function() {
                     $('[data-bs-toggle="tooltip"]').tooltip();
                 }
             });
 
+            // Add extension validation method for jQuery Validate
+            $.validator.addMethod("extension", function(value, element, param) {
+                param = typeof param === "string" ? param.replace(/,/g, '|') : "png|jpe?g|gif";
+                return this.optional(element) || value.match(new RegExp("." + param + "$", "i"));
+            }, "Please enter a value with a valid extension.");
             // Prevent default form submission
             $('#createCategoryForm').on('submit', function(e) {
                 e.preventDefault();
@@ -303,7 +254,7 @@
 
                     $.ajax({
                         url: '{{ route('admin.categories.update', '') }}/' + categoryId,
-                        type: 'PUT',
+                        type: 'POST',
                         data: formData,
                         processData: false,
                         contentType: false,

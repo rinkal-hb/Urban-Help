@@ -611,7 +611,7 @@
                 <!-- End::header-link|dropdown-toggle -->
                 <ul class="main-header-dropdown dropdown-menu pt-0 overflow-hidden header-profile-dropdown dropdown-menu-end"
                     aria-labelledby="mainHeaderProfile">
-                    <li><a class="dropdown-item d-flex" href="{{ url('profile') }}"><i
+                    <li><a class="dropdown-item d-flex" href="{{ route('admin.profile') }}"><i
                                 class="ti ti-user-circle fs-18 me-2 op-7"></i>Profile</a></li>
                     <li><a class="dropdown-item d-flex" href="{{ url('mail') }}"><i
                                 class="ti ti-inbox fs-18 me-2 op-7"></i>Inbox <span
@@ -624,7 +624,7 @@
                                 class="ti ti-wallet fs-18 me-2 op-7"></i>Bal: $7,12,950</a></li>
                     <li><a class="dropdown-item d-flex" href="{{ url('chat') }}"><i
                                 class="ti ti-headset fs-18 me-2 op-7"></i>Support</a></li>
-                    <li><a class="dropdown-item d-flex" href="{{ url('signin-cover') }}"><i
+                    <li><a class="dropdown-item d-flex" href="{{ route('logout') }}"><i
                                 class="ti ti-logout fs-18 me-2 op-7"></i>Log Out</a></li>
                 </ul>
             </div>

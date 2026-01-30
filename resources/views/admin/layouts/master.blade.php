@@ -72,7 +72,7 @@
         <div class="main-content app-content">
 
             @yield('content')
-            @yield('modal')
+
         </div>
         <!-- END MAIN-CONTENT -->
 
